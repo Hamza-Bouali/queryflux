@@ -293,6 +293,11 @@ pub async fn dispatch_query(
         }
     };
 
+    // Capacity wait only — capture before identity, translation, guards, and submit.
+    let queue_duration_ms = queued_since
+        .map(|t| (Utc::now() - t).num_milliseconds().max(0) as u64)
+        .unwrap_or(0);
+
     // RAII guard: from here on the local slot and global lease are released on
     // every exit — including the future being dropped when the client
     // disconnects mid-dispatch, which previously leaked the lease permanently
@@ -520,9 +525,6 @@ pub async fn dispatch_query(
             if already_queued {
                 let _ = state.persistence.delete_queued(&query_id).await;
             }
-            let queue_duration_ms = queued_since
-                .map(|t| (Utc::now() - t).num_milliseconds().max(0) as u64)
-                .unwrap_or(0);
             if queue_duration_ms > 0 {
                 debug!(id = %query_id, queue_ms = queue_duration_ms, "Queued query dispatched");
             }
@@ -559,6 +561,7 @@ pub async fn dispatch_query(
                 was_guard_blocked: false,
                 submitted_by: auth_ctx.user.clone(),
                 wire_auth: wire_auth.clone(),
+                queue_duration_ms,
             };
 
             match execution {
@@ -590,9 +593,6 @@ pub async fn dispatch_query(
                         )));
                     }
                     slot.disarm();
-                    // TODO: persist queue_duration_ms so the poll handler can include it
-                    // in the final QueryOutcome. Either add a field to ExecutingQuery or
-                    // store it in a side-channel (e.g. a metadata column).
                     info!(id = %query_id, backend = %backend_query_id, cluster = %cluster_name, queue_ms = queue_duration_ms, "Query submitted (async)");
 
                     let proxy_next_uri = poll_token
@@ -649,7 +649,6 @@ pub async fn dispatch_query(
                         status,
                         error,
                         engine_stats,
-                        queue_duration_ms,
                     )
                     .await;
                     Ok(DispatchOutcome::Async {
@@ -680,7 +679,6 @@ async fn finalize_async_terminal_on_submit(
     status: QueryStatus,
     error: Option<String>,
     engine_stats: Option<QueryEngineStats>,
-    queue_duration_ms: u64,
 ) {
     let elapsed_ms = (Utc::now() - executing.creation_time)
         .num_milliseconds()
@@ -706,7 +704,7 @@ async fn finalize_async_terminal_on_submit(
         engine_stats,
         guard_actions: vec![],
         was_guard_blocked: false,
-        queue_duration_ms,
+        queue_duration_ms: executing.queue_duration_ms,
         cache_hit: false,
     };
     if !stored_actions.is_empty() {
