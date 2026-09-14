@@ -28,6 +28,8 @@ endif
 
 .PHONY: dev stop logs build lint clippy check helm-check test benchmark benchmark-build benchmark-run test-e2e clean setup
 
+
+
 ## Create virtualenv and install Python dependencies (sqlglot etc.)
 setup:
 	python3 -m venv .venv
@@ -50,6 +52,10 @@ server:
 	PYTHONPATH=$(PYTHONPATH_VENV) \
 	RUST_LOG=queryflux=info,queryflux_frontend=info \
 	$(CARGO) run --bin queryflux -- --config config.local.yaml
+
+dev:
+	$(MAKE) env
+	$(MAKE) server
 ## Stop Docker services and any running QueryFlux process
 stop:
 	@pkill -f "queryflux.*config.local.yaml" 2>/dev/null; true
