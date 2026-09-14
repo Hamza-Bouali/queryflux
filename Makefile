@@ -38,7 +38,7 @@ setup:
 ## load TPC-H data into Iceberg, then run QueryFlux locally.
 env:
 	@test -f .venv/bin/python3 || (echo "Run 'make setup' first" && exit 1)
-	@pkill -f "queryflux.*config.local.yaml" 2>/dev/null; true
+	@pkill -x queryflux 2>/dev/null || true
 	$(COMPOSE) up -d --wait trino starrocks postgres sentinel
 	$(COMPOSE) run --rm -T data-loader
 	$(COMPOSE) run --rm -T starrocks-catalog-setup
