@@ -39,8 +39,8 @@ setup:
 ## Start all services (Trino, StarRocks, Lakekeeper + MinIO, Postgres, observability),
 ## load TPC-H data into Iceberg, then run QueryFlux locally.
 env:
-	@test -f .venv/bin/python3 || (echo "Run 'make setup' first" && exit 1)
-	@pkill -x queryflux 2>/dev/null || true
+	test -f .venv/bin/python3 || (echo "Run 'make setup' first" && exit 1)
+	@pkill -f '[q]ueryflux.*config\.local\.yaml' 2>/dev/null || true
 	$(COMPOSE) up -d --wait trino starrocks postgres sentinel
 	$(COMPOSE) run --rm -T data-loader
 	$(COMPOSE) run --rm -T starrocks-catalog-setup
@@ -58,10 +58,10 @@ dev:
 	$(MAKE) server
 ## Stop Docker services and any running QueryFlux process
 stop:
-	@pkill -f "queryflux.*config.local.yaml" 2>/dev/null; true
+	@pkill -f '[q]ueryflux.*config\.local\.yaml' 2>/dev/null || true
 	$(COMPOSE) down
 
-## Stream logs from Docker services
+## Stream logs from Docker services	
 logs:
 	$(COMPOSE) logs -f
 
